@@ -6,16 +6,18 @@ import java.io.InputStream;
 
 public class MetricsProcessor {
 
-    private static String DB_URL;
-    private static String USER;
-    private static String PASS;
+    static String DB_HOST;
+    static String USER;
+    static String PASS;
+    static final String JDBC_URL_TEMPLATE = "jdbc:mysql://%s:3306/ml_analytics?useSSL=false&serverTimezone=UTC";
+
 
     static {
         try (InputStream input = MetricsProcessor.class.getClassLoader().getResourceAsStream("database.properties")) {
             Properties prop = new Properties();
             prop.load(input);
 
-            DB_URL = prop.getProperty("db.url");
+            DB_HOST = prop.getProperty("db.host");
             USER = prop.getProperty("db.user");
             PASS = prop.getProperty("db.password");
         } catch (Exception e) {
@@ -24,7 +26,8 @@ public class MetricsProcessor {
     }
 
     public static void main(String[] args) {
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
+        String jdbcUrl = String.format(JDBC_URL_TEMPLATE, DB_HOST);
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, USER, PASS)) {
             processMetrics(conn);
         } catch (SQLException e) {
             e.printStackTrace();
