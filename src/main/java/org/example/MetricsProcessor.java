@@ -31,8 +31,17 @@ public class MetricsProcessor {
             processMetrics(conn);
         } catch (SQLException e) {
             e.printStackTrace();
+        } finally {
+            for (Thread thread : Thread.getAllStackTraces().keySet()) {
+                if (thread.getName().startsWith("mysql-cj-abandoned-connection-cleanup")) {
+                    thread.interrupt();
+                }
+            }
         }
+        System.exit(0);
     }
+
+
 
     private static void processMetrics(Connection conn) {
         String selectMetricsQuery = "SELECT id, query FROM core_metrics";
