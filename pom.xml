@@ -24,7 +24,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.0.0</version>
                 <configuration>
-                    <mainClass>org.example.MetricsProcessor</mainClass>
+                    <mainClass>org.example.MainClass</mainClass>
                 </configuration>
             </plugin>
         </plugins>

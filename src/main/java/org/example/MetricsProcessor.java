@@ -1,33 +1,16 @@
 package org.example;
 
-import java.sql.*;
-import java.util.Properties;
-import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Date;
 
 public class MetricsProcessor {
 
-    static String DB_HOST;
-    static String USER;
-    static String PASS;
-    static final String JDBC_URL_TEMPLATE = "jdbc:mysql://%s:3306/ml_analytics?useSSL=false&serverTimezone=UTC";
-
-
-    static {
-        try (InputStream input = MetricsProcessor.class.getClassLoader().getResourceAsStream("database.properties")) {
-            Properties prop = new Properties();
-            prop.load(input);
-
-            DB_HOST = prop.getProperty("db.host");
-            USER = prop.getProperty("db.user");
-            PASS = prop.getProperty("db.password");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static void main(String[] args) {
-        String jdbcUrl = String.format(JDBC_URL_TEMPLATE, DB_HOST);
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, USER, PASS)) {
+    public void run() {
+        try (Connection conn = DatabaseUtils.getConnection()) {
             processMetrics(conn);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -41,10 +24,9 @@ public class MetricsProcessor {
         System.exit(0);
     }
 
-
-
-    private static void processMetrics(Connection conn) {
+    private void processMetrics(Connection conn) {
         String selectMetricsQuery = "SELECT id, query FROM core_metrics";
+
         try (PreparedStatement stmt = conn.prepareStatement(selectMetricsQuery);
              ResultSet rs = stmt.executeQuery()) {
 
@@ -53,45 +35,50 @@ public class MetricsProcessor {
                 String query = rs.getString("query");
 
                 if (!query.trim().toLowerCase().startsWith("select")) {
-                    logError(conn, metricId, "Only SELECT queries are allowed");
+                    logError(conn, metricId, "Query is not a SELECT statement");
                     continue;
                 }
 
-                try (PreparedStatement innerStmt = conn.prepareStatement(query);
-                     ResultSet innerRs = innerStmt.executeQuery()) {
+                try (PreparedStatement metricStmt = conn.prepareStatement(query);
+                     ResultSet metricRs = metricStmt.executeQuery()) {
 
-                    if (innerRs.getMetaData().getColumnCount() > 1) {
-                        logError(conn, metricId, "Query returns more than one value");
-                        continue;
-                    }
-
-                    if (innerRs.next()) {
-                        double value = innerRs.getDouble(1);
+                    if (metricRs.next()) {
+                        double value = metricRs.getDouble(1);
+                        if (metricRs.next()) {
+                            logError(conn, metricId, "Query returned more than one value");
+                            continue;
+                        }
                         logData(conn, metricId, value);
+                    } else {
+                        logError(conn, metricId, "Query returned no results");
                     }
+
                 } catch (SQLException e) {
                     logError(conn, metricId, e.getMessage());
                 }
             }
+
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    private static void logData(Connection conn, int metricId, double value) throws SQLException {
-        String insertDataQuery = "INSERT INTO core_metrics_data (date, metric_id, value) VALUES (CURDATE(), ?, ?)";
+    private void logData(Connection conn, int metricId, double value) throws SQLException {
+        String insertDataQuery = "INSERT INTO core_metrics_data (date, metric_id, value) VALUES (?, ?, ?)";
         try (PreparedStatement stmt = conn.prepareStatement(insertDataQuery)) {
-            stmt.setInt(1, metricId);
-            stmt.setDouble(2, value);
+            stmt.setTimestamp(1, new Timestamp(new Date().getTime()));
+            stmt.setInt(2, metricId);
+            stmt.setDouble(3, value);
             stmt.executeUpdate();
         }
     }
 
-    private static void logError(Connection conn, int metricId, String error) throws SQLException {
-        String insertErrorQuery = "INSERT INTO core_metrics_failed (date, metric_id, error) VALUES (CURDATE(), ?, ?)";
+    private void logError(Connection conn, int metricId, String error) throws SQLException {
+        String insertErrorQuery = "INSERT INTO core_metrics_failed (date, metric_id, error) VALUES (?, ?, ?)";
         try (PreparedStatement stmt = conn.prepareStatement(insertErrorQuery)) {
-            stmt.setInt(1, metricId);
-            stmt.setString(2, error);
+            stmt.setTimestamp(1, new Timestamp(new Date().getTime()));
+            stmt.setInt(2, metricId);
+            stmt.setString(3, error);
             stmt.executeUpdate();
         }
     }

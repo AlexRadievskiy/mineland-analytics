@@ -1,0 +1,49 @@
+create table ml.analytics.core_metrics
+(
+    id    int auto_increment
+        primary key,
+    query text not null
+);
+
+---------------------------------------
+
+create table ml.analytics.core_metrics_data
+(
+    id        int auto_increment
+        primary key,
+    date      date   not null,
+    metric_id int    not null,
+    value     double not null,
+    constraint core_metrics_data_ibfk_1
+        foreign key (metric_id) references core_metrics (id)
+);
+
+create index metric_id
+    on core_metrics_data (metric_id);
+
+---------------------------------------
+
+create table ml.analytics.core_metrics_failed
+(
+    id        int auto_increment
+        primary key,
+    date      date not null,
+    metric_id int  not null,
+    error     text not null,
+    constraint core_metrics_failed_ibfk_1
+        foreign key (metric_id) references core_metrics (id)
+);
+
+create index ml.analytics.metric_id
+    on core_metrics_failed (metric_id);
+
+---------------------------------------
+
+create table test_data.products
+(
+    id    int auto_increment
+        primary key,
+    name  varchar(255)   not null,
+    price decimal(10, 2) not null
+);
+
